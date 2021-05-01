@@ -1,5 +1,9 @@
+#[path = "./user_lib.rs"]
+mod user_lib;
+
+use crate::models::users::users::user_lib::NewUser;
 use diesel::prelude::*;
-use diesel::{MysqlConnection, RunQueryDsl};
+use diesel::MysqlConnection;
 use mysql::chrono::{DateTime, Utc};
 
 #[derive(Queryable)]
@@ -14,13 +18,6 @@ pub struct User {
     pub pin: String,
 }
 
-pub struct NewUser<'a> {
-    pub user_name: &'a str,
-    pub first_name: &'a str,
-    pub last_name: &'a str,
-    pub pin: &'a str,
-}
-
 /// create_user creates a user for returns it back
 pub fn create_user<'a>(
     conn: &MysqlConnection,
@@ -28,18 +25,19 @@ pub fn create_user<'a>(
     first_name: &'a str,
     last_name: &'a str,
     hashed_pin: &'a str,
-) -> User {
-    use crate::models::schema::users;
+) -> usize {
+    use super::super::schema::users;
+    // use super::super::schema::users::dsl::*;
 
     let new_user = NewUser {
-        user_name,
-        first_name,
-        last_name,
-        pin: hashed_pin,
+        user_name: user_name.to_string(),
+        first_name: first_name.to_string(),
+        last_name: Some(last_name.parse().unwrap()),
+        pin: hashed_pin.to_string(),
     };
 
     diesel::insert_into(users::table)
         .values(&new_user)
-        .get_result(conn)
+        .execute(conn)
         .expect("Error saving new users")
 }

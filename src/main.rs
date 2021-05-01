@@ -1,4 +1,5 @@
-#![feature(proc_macro_hygiene, decl_macro, custom_attribute)]
+#![feature(proc_macro_hygiene, decl_macro)]
+#![feature(in_band_lifetimes)]
 
 // crates
 #[macro_use]
@@ -23,6 +24,8 @@ use crate::database::conn::init_diesel_conn;
 mod api;
 mod database;
 mod models;
+
+use api::routes::*;
 
 embed_migrations!();
 
@@ -69,6 +72,7 @@ fn main() {
     //     // create user table
     //     pool_conn.query_drop(user_query).unwrap();
      */
+    dotenv::dotenv().ok();
 
     // Init Diesel db connection
     let mysql_conn = init_diesel_conn();
@@ -76,5 +80,5 @@ fn main() {
     // run migrations
     embedded_migrations::run(&mysql_conn);
 
-    rocket::ignite().mount("/v1", routes![]).launch();
+    rocket::ignite().mount("/v1", routes![post_user]).launch();
 }
