@@ -15,11 +15,20 @@ pub struct NewUser<'a> {
 
 pub fn new_user(user: Json<NewUser>) -> APIResponse {
     // validation
+    if user.user_name.len() < 5 {
+        return APIResponse {
+            status: Status::BadRequest,
+            description: json!({
+                "Status": "user name needs to be atleast 5 characters"
+            }),
+        };
+    }
+
     if user.first_name.len() < 2 {
         return APIResponse {
             status: Status::BadRequest,
             description: json!({
-                "Status": "first name need to be atleast 2 characters"
+                "Status": "first name needs to be atleast 2 characters"
             }),
         };
     }
@@ -28,10 +37,22 @@ pub fn new_user(user: Json<NewUser>) -> APIResponse {
         return APIResponse {
             status: Status::BadRequest,
             description: json!({
-                "Status": "last name need to be atleast 2 characters"
+                "Status": "last name needs to be atleast 2 characters"
             }),
         };
     }
+
+    if user.pin.len() == 4 {
+        return APIResponse {
+            status: Status::BadRequest,
+            description: json!({
+                "Status": "pin needs to be 4 characters"
+            }),
+        };
+    }
+
+    // check if the user name exists
+    // todo if same name doesnt exists then add user to db
 
     return APIResponse {
         status: Status::Created,

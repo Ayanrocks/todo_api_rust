@@ -41,3 +41,16 @@ pub fn create_user<'a>(
         .execute(conn)
         .expect("Error saving new users")
 }
+
+pub fn check_user_exists(conn: &MysqlConnection, username: &'a str) -> bool {
+    use super::super::schema::users;
+
+    // todo fix check user of same name exists or not
+    let result = users::table
+        .filter(users::user_name.eq(username))
+        .limit(5)
+        .load::<User>(&conn)
+        .expect("error loading users");
+
+    return false;
+}
