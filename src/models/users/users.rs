@@ -1,17 +1,19 @@
 #[path = "./user_lib.rs"]
 mod user_lib;
+use crate::models::schema::users;
 
 use crate::models::users::users::user_lib::NewUser;
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
-use diesel::MysqlConnection;
+use diesel::{sql_query, MysqlConnection};
 
-#[derive(Queryable)]
+#[derive(Queryable, QueryableByName)]
+#[table_name = "users"]
 pub struct User {
     pub id: i32,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
-    pub deleted_at: NaiveDateTime,
+    pub deleted_at: Option<NaiveDateTime>,
     pub user_name: String,
     pub first_name: String,
     pub last_name: Option<String>,
@@ -26,19 +28,18 @@ pub fn create_user<'a>(
     last_name: &'a str,
     hashed_pin: &'a str,
 ) -> usize {
-    use super::super::schema::users::dsl::*;
+    use super::super::schema::users;
     // use super::super::schema::users::dsl::*;
 
     let new_user = NewUser {
         user_name,
         first_name,
         last_name: Some(last_name.parse().unwrap()),
-        pin: hashed_pin.to_string(),
+        pin: hashed_pin,
     };
 
-    diesel::insert_into(users)
+    diesel::insert_into(users::table)
         .values(&new_user)
-        .default_values()
         .execute(conn)
         .expect("Error saving new users")
 }
@@ -46,13 +47,14 @@ pub fn create_user<'a>(
 pub fn check_user_exists(conn: &MysqlConnection, username: &'a str) -> bool {
     use super::super::schema::users::dsl::*;
 
-    let result = users
-        .filter(user_name.eq(username))
-        .limit(5)
-        .load::<User>(conn)
-        .expect("error loading users");
+    let results = diesel::dsl::sql_query(
+        "SELECT * FROM users u WHERE u.deleted_at is NULL AND u.user_name = ?",
+    )
+    .bind::<&str, _>(username)
+    .get_result(conn)
+    .expect("error loadi ng users");
 
-    if result.len() == 0 {
+    if results.len() == 0 {
         return true;
     }
 
