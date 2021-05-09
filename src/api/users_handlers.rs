@@ -4,6 +4,8 @@ use rocket_contrib::json::{Json, JsonValue};
 use serde::Deserialize;
 
 use super::super::routes::APIResponse;
+use crate::database::conn::init_diesel_conn;
+use crate::models::users::users::{check_user_exists, create_user};
 
 #[derive(Deserialize)]
 pub struct NewUser<'a> {
@@ -14,6 +16,8 @@ pub struct NewUser<'a> {
 }
 
 pub fn new_user(user: Json<NewUser>) -> APIResponse {
+    let last_name = user.last_name.unwrap();
+
     // validation
     if user.user_name.len() < 5 {
         return APIResponse {
@@ -33,7 +37,7 @@ pub fn new_user(user: Json<NewUser>) -> APIResponse {
         };
     }
 
-    if user.last_name.unwrap_or("") != "" && user.last_name.unwrap_or("").len() < 2 {
+    if last_name != "" && last_name.len() < 2 {
         return APIResponse {
             status: Status::BadRequest,
             description: json!({
@@ -42,7 +46,7 @@ pub fn new_user(user: Json<NewUser>) -> APIResponse {
         };
     }
 
-    if user.pin.len() == 4 {
+    if user.pin.len() != 4 {
         return APIResponse {
             status: Status::BadRequest,
             description: json!({
@@ -51,8 +55,25 @@ pub fn new_user(user: Json<NewUser>) -> APIResponse {
         };
     }
 
+    // init db connection
+    let conn = init_diesel_conn();
+
     // check if the user name exists
-    // todo if same name doesnt exists then add user to db
+    let if_exists = check_user_exists(&conn, user.user_name);
+
+    if !if_exists {
+        return APIResponse {
+            status: Status::BadRequest,
+            description: json!({
+                "Status": "duplicate user"
+            }),
+        };
+    }
+
+    // create a new user now
+    let rows_inserted = create_user(&conn, user.user_name, user.first_name, last_name, user.pin);
+
+    println!("{}", rows_inserted);
 
     return APIResponse {
         status: Status::Created,

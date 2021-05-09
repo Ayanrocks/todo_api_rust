@@ -2,19 +2,19 @@
 mod user_lib;
 
 use crate::models::users::users::user_lib::NewUser;
+use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use diesel::MysqlConnection;
-use mysql::chrono::{DateTime, Utc};
 
 #[derive(Queryable)]
 pub struct User {
     pub id: i32,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-    pub deleted_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub deleted_at: NaiveDateTime,
     pub user_name: String,
     pub first_name: String,
-    pub last_name: String,
+    pub last_name: Option<String>,
     pub pin: String,
 }
 
@@ -26,31 +26,35 @@ pub fn create_user<'a>(
     last_name: &'a str,
     hashed_pin: &'a str,
 ) -> usize {
-    use super::super::schema::users;
+    use super::super::schema::users::dsl::*;
     // use super::super::schema::users::dsl::*;
 
     let new_user = NewUser {
-        user_name: user_name.to_string(),
-        first_name: first_name.to_string(),
+        user_name,
+        first_name,
         last_name: Some(last_name.parse().unwrap()),
         pin: hashed_pin.to_string(),
     };
 
-    diesel::insert_into(users::table)
+    diesel::insert_into(users)
         .values(&new_user)
+        .default_values()
         .execute(conn)
         .expect("Error saving new users")
 }
 
 pub fn check_user_exists(conn: &MysqlConnection, username: &'a str) -> bool {
-    use super::super::schema::users;
+    use super::super::schema::users::dsl::*;
 
-    // todo fix check user of same name exists or not
-    let result = users::table
-        .filter(users::user_name.eq(username))
+    let result = users
+        .filter(user_name.eq(username))
         .limit(5)
-        .load::<User>(&conn)
+        .load::<User>(conn)
         .expect("error loading users");
+
+    if result.len() == 0 {
+        return true;
+    }
 
     return false;
 }
