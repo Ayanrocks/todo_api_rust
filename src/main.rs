@@ -1,30 +1,33 @@
 #![feature(proc_macro_hygiene, decl_macro)]
+#![feature(in_band_lifetimes)]
 
 // crates
 #[macro_use]
 extern crate rocket;
-extern crate chrono;
 extern crate serde;
 extern crate serde_json;
+#[macro_use]
+extern crate diesel;
+#[macro_use]
+extern crate diesel_migrations;
+
+use std::env;
+
+use dotenv::dotenv;
+use mysql::PooledConn;
+use serde::Serialize;
 
 // imports
-use chrono::Utc;
-use mysql::prelude::*;
-use mysql::PooledConn;
-use rocket::http::Status;
-use rocket_contrib::json::Json;
-use serde::{Deserialize, Serialize};
+use crate::database::conn::init_diesel_conn;
 
 // modules
-pub mod database;
+mod api;
+mod database;
+mod models;
 
-// structs
-#[derive(Deserialize)]
-struct User {
-    first_name: String,
-    last_name: String,
-    pin: String,
-}
+use api::routes::*;
+
+embed_migrations!();
 
 #[derive(Serialize)]
 struct ErrResponse {
@@ -32,78 +35,50 @@ struct ErrResponse {
     description: String,
 }
 
-// routes
-#[post("/user", format = "json", data = "<user>")]
-fn new_user(user: Json<User>) -> Status {
-    println!(
-        "User details: {}, {}. {}",
-        user.first_name, user.last_name, user.pin
-    );
-
-    // field validation
-    if user.first_name == "" || user.last_name == "" || user.pin == "" {
-        return Status::BadRequest;
-    }
-
-    // get db instance
-    let mut pool_conn = get_db();
-
-    // store it in db
-    let insert_user_query = r"
-        INSERT INTO users (id, created_id, updated_at, first_name, last_name, PIN) VALUES (?, ?, ?, ?, ?, ?)
-    ";
-
-    let now_time = mysql::chrono::DateTime::<Utc>::from(Utc::now()).to_string();
-
-    pool_conn
-        .exec_drop(
-            insert_user_query,
-            (
-                1,
-                &now_time,
-                &now_time,
-                &user.first_name,
-                &user.last_name,
-                &user.pin,
-            ),
-        )
-        .unwrap();
-
-    Status::Accepted
-}
-
 fn get_db() -> PooledConn {
-    const DB_HOST: &str = "localhost";
+    dotenv().ok();
+    let db_host: std::string::String = env::var("DB_HOST").expect("DB_HOST must be set");
 
-    const DB_USER: &str = "root";
-    const DB_PASSWORD: &str = "1234";
-    const DB_PORT: &str = "3306";
-    const DB_NAME: &str = "todo_rust";
+    let db_user: std::string::String = env::var("DB_USER").expect("DB_USER must be set");
+    let db_password: std::string::String =
+        env::var("DB_PASSWORD").expect("DB_PASSWORD must be set");
+    let dn_port: std::string::String = env::var("DB_PORT").expect("DB_PORT must be set");
+    let db_name: std::string::String = env::var("DB_NAME").expect("DB_NAME must be set");
 
     // database connection
     let pool_conn: PooledConn =
-        database::conn::init_database(DB_USER, DB_HOST, DB_PORT, DB_PASSWORD, DB_NAME);
+        database::conn::init_database(&db_user, &db_host, &dn_port, &db_password, &db_name);
 
     return pool_conn;
 }
 
 // main
 fn main() {
-    let user_query = r"CREATE TABLE IF NOT EXISTS users
-(
-    id         int PRIMARY KEY,
-    created_id DATETIME,
-    updated_at DATETIME,
-    deleted_at DATETIME,
-    first_name VARCHAR(50) NOT NULL,
-    last_name  VARCHAR(50) NOT NULL,
-    PIN        VARCHAR(50) NOT NULL
-)";
+    // DEPRECATED CODE
+    /*
+    //     let user_query = r"CREATE TABLE IF NOT EXISTS users
+    // (
+    //     id         int PRIMARY KEY,
+    //     created_id DATETIME,
+    //     updated_at DATETIME,
+    //     deleted_at DATETIME,
+    //     first_name VARCHAR(50) NOT NULL,
+    //     last_name  VARCHAR(50) NOT NULL,
+    //     PIN        VARCHAR(50) NOT NULL
+    // )";
+    //
+    //     let mut pool_conn = get_db();
+    //
+    //     // create user table
+    //     pool_conn.query_drop(user_query).unwrap();
+     */
+    dotenv::dotenv().ok();
 
-    let mut pool_conn = get_db();
+    // Init Diesel db connection
+    let mysql_conn = init_diesel_conn();
 
-    // create user table
-    pool_conn.query_drop(user_query).unwrap();
+    // run migrations
+    embedded_migrations::run(&mysql_conn);
 
-    rocket::ignite().mount("/v1", routes![new_user]).launch();
+    rocket::ignite().mount("/v1", routes![post_user]).launch();
 }

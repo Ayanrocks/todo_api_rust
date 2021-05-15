@@ -1,5 +1,8 @@
+use diesel::mysql::MysqlConnection;
+use diesel::prelude::*;
 use mysql::prelude::*;
 use mysql::*;
+use std::env;
 
 /// inits database and returns a pool connection
 pub fn init_database(
@@ -22,4 +25,11 @@ pub fn init_database(
     };
 
     pool.get_conn().unwrap()
+}
+
+/// inits diesel connection to the DB
+pub fn init_diesel_conn() -> MysqlConnection {
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    MysqlConnection::establish(&database_url)
+        .expect(&format!("Error connecting to {}", database_url))
 }
